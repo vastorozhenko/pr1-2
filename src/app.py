@@ -3,6 +3,7 @@ from flask import Flask, request, render_template, redirect, make_response, sess
 from werkzeug.security import check_password_hash
 import logging
 import os
+import secrets
 import sqlite3
 import time
 
@@ -26,6 +27,13 @@ audit = logging.getLogger("audit")
 MAX_FAILED = 5
 LOCK_SECONDS = 300
 FAILED = {}  # username -> (кількість невдалих спроб, заблоковано до)
+
+def csrf_token():
+    """Токен проти CSRF: випадкове значення в сесії та в прихованому полі форми."""
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+    return session["csrf_token"]
+
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -57,13 +65,17 @@ def search():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+        expected = session.get("csrf_token", "")
+        if not expected or not secrets.compare_digest(request.form.get("csrf_token", ""), expected):
+            audit.warning("csrf_rejected ip=%s", request.remote_addr)
+            return render_template("login.html", error="Invalid form token", csrf_token=csrf_token()), 400
         username = request.form.get("username", "")
         password = request.form.get("password", "")
         ip = request.remote_addr
         count, locked_until = FAILED.get(username, (0, 0))
         if locked_until > time.time():
             audit.warning("login_locked user=%s ip=%s", username, ip)
-            return render_template("login.html", error="Account temporarily locked"), 429
+            return render_template("login.html", error="Account temporarily locked", csrf_token=csrf_token()), 429
         conn = get_db()
         cur = conn.cursor()
         row = cur.execute("SELECT id, username, password FROM users WHERE username = ?", (username,)).fetchone()
@@ -81,8 +93,8 @@ def login():
         else:
             FAILED[username] = (count, 0)
             audit.warning("login_failed user=%s ip=%s attempt=%d", username, ip, count)
-        return render_template("login.html", error="Invalid credentials")
-    return render_template("login.html")
+        return render_template("login.html", error="Invalid credentials", csrf_token=csrf_token())
+    return render_template("login.html", csrf_token=csrf_token())
 
 @app.route("/profile")
 def profile():
