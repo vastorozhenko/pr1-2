@@ -8,13 +8,13 @@ run:
 	FLASK_APP=src/app.py FLASK_ENV=development python src/db.py && flask run
 
 semgrep:
-	semgrep scan --error --config auto || true
+	semgrep scan --config auto --config .semgrep.yml || true
 
 bandit:
 	bandit -r src || true
 
 audit:
-	pip-audit || true
+	pip-audit -r requirements.txt || true
 
 up:
 	docker-compose up -d --build
