@@ -66,3 +66,21 @@
 - Пом'якшення: оновлення залежностей за результатами pip-audit.
 
 ## Виявлені ризики/знахідки
+
+Початковий аналіз виконано локально командами `make bandit` (Bandit 1.9.4) і `make semgrep` (Semgrep, реєстрові правила `--config auto`, 343 правила, 24 файли). Bandit знайшов 3 проблеми, Semgrep 19. Після об'єднання знахідок, що вказують на ту саму проблему, отримано 6 різних проблем.
+
+| # | Проблема | Розташування | Знахідки сканерів | Критичність | Ризик |
+|---|---|---|---|---|---|
+| F1 | SQL Injection | `src/app.py:28–33` (`/search`) | Bandit B608; Semgrep `tainted-sql-string` (2), `formatted-sql-query`, `sqlalchemy-execute-raw-query`, `sql-injection-db-cursor-execute` | Critical | R1 |
+| F2 | Reflected XSS | `src/app.py:24` (`/echo`) | Semgrep `directly-returned-format-string`, `raw-html-format` (2) | High | R2 |
+| F3 | Debug-режим і прослуховування всіх інтерфейсів | `src/app.py:63` | Bandit B201 (High), B104; Semgrep `debug-enabled`, `avoid_app_run_with_bad_host` | High | R5 |
+| F4 | Форма входу без CSRF-токена | `src/templates/login.html:8` | Semgrep `django-no-csrf-token` | Medium | R6 |
+| F5 | Дії GitHub Actions підключено за змінним тегом, а не за SHA | `.github/workflows/sast.yml`, `dast.yml` (8 місць) | Semgrep `github-actions-mutable-action-tag` (8) | Low | R7 |
+| F6 | Паролі відкритим текстом, запасний `SECRET_KEY` у коді | `src/app.py:45`, `src/app.py:7`, `src/db.py` | **не виявлено** жодним сканером; виявлено ручним оглядом коду | Critical | R3, R5 |
+
+**Висновки:**
+- Обидва сканери підтвердили найкритичнішу проблему, SQL Injection (F1): її знайшли 6 правил Semgrep і Bandit B608. XSS (F2) знайшов лише Semgrep, Bandit цю проблему не бачить.
+- Сканування виявило два ризики, яких не було в початковому переліку: відсутність CSRF-захисту форми входу (R6) і підключення дій CI за змінними тегами (R7, ризик ланцюга постачання CI).
+- Стандартні правила **не виявили** зберігання паролів відкритим текстом і запасний `SECRET_KEY` (F6), хоча це критичні проблеми. Тому на етапі SAST у конвеєр додано власний набір правил Semgrep (`.semgrep.yml`), що покриває ці випадки.
+- Більшість знахідок Semgrep (8 з 19) стосуються конфігурації CI, а не коду застосунку. Під час тріажу їх об'єднано в одну знахідку з низькою критичністю.
+- Відповідність знахідок сценаріям атак: F1 — сценарій 1, F2 — сценарій 2, F6 — сценарій 3, F3 і F6 — сценарій 4.

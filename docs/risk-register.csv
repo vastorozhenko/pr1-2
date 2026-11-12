@@ -1,6 +1,8 @@
 Risk ID,Threat,Likelihood,Impact,Severity,Owner,Status,Notes
-R1,SQL Injection in /search (param q in f-string),High,High,Critical,Dev,Open,INP-1; read/modify any DB data incl. passwords
-R2,Reflected XSS in /echo (param msg unescaped),High,Med,High,Dev,Open,OUT-1 HDR-1; session theft via crafted link
-R3,Weak auth: plaintext passwords and no login rate limit,High,High,Critical,Dev,Open,STOR-1 AUTH-2 LOG-1; brute force; with R1 all passwords leak
+R1,SQL Injection in /search (param q in f-string),High,High,Critical,Dev,Open,INP-1; read/modify any DB data incl. passwords; F1 Bandit B608 + 5 Semgrep rules
+R2,Reflected XSS in /echo (param msg unescaped),High,Med,High,Dev,Open,OUT-1 HDR-1; session theft via crafted link; F2 Semgrep
+R3,Weak auth: plaintext passwords and no login rate limit,High,High,Critical,Dev,Open,STOR-1 AUTH-2 LOG-1; brute force; with R1 all passwords leak; F6 not found by default rules
 R4,Vulnerable dependencies,Med,Med,High,DevOps,Open,NFR-3; checked by pip-audit in CI
-R5,Insecure config: SECRET_KEY fallback and debug=True and SQL shown on page,Med,High,High,DevOps,Open,CONF-1; session forgery and RCE via Werkzeug debugger
+R5,Insecure config: SECRET_KEY fallback and debug=True and SQL shown on page,Med,High,High,DevOps,Open,CONF-1; session forgery and RCE via Werkzeug debugger; F3 Bandit B201 B104 + Semgrep
+R6,CSRF on login form (no anti-CSRF token),Med,Low,Medium,Dev,Open,new from SAST F4; login CSRF
+R7,CI supply chain: GitHub Actions pinned by mutable tag,Low,Med,Low,DevOps,Open,new from SAST F5; official actions only; pin by SHA in production
