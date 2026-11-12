@@ -1,17 +1,58 @@
 
 from flask import Flask, request, render_template, redirect, make_response, session
+from werkzeug.security import check_password_hash
+import logging
 import os
+import secrets
 import sqlite3
+import time
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "hardcoded-dev-secret")  # intentionally weak
+# CONF-1: секретний ключ лише з ENV/секретів, без запасного значення в коді
+app.secret_key = os.environ["SECRET_KEY"]
+# SESS-1: прапорці сесійного cookie (Secure вмикається при роботі через HTTPS)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "0") == "1",
+)
 
 DB_PATH = os.environ.get("DB_PATH", "demo.sqlite3")
+
+# LOG-1: журнал аудиту входів (паролі не записуються)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+audit = logging.getLogger("audit")
+
+# AUTH-2: блокування після MAX_FAILED невдалих спроб поспіль на LOCK_SECONDS
+MAX_FAILED = 5
+LOCK_SECONDS = 300
+FAILED = {}  # username -> (кількість невдалих спроб, заблоковано до)
+
+def csrf_token():
+    """Токен проти CSRF: випадкове значення в сесії та в прихованому полі форми."""
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+    return session["csrf_token"]
+
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+@app.after_request
+def security_headers(resp):
+    """HDR-1: заголовки безпеки для всіх відповідей (за результатами ZAP baseline)."""
+    resp.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; form-action 'self'"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    resp.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    resp.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    return resp
+
 
 @app.route("/")
 def index():
@@ -19,36 +60,55 @@ def index():
 
 @app.route("/echo")
 def echo():
-    # Vulnerable to reflected XSS (intentionally)
+    # OUT-1: вивід через шаблон Jinja2 з автоматичним екрануванням
     msg = request.args.get("msg", "")
-    return f"<h1>Echo</h1><p>{msg}</p>"
+    return render_template("echo.html", msg=msg)
 
 @app.route("/search")
 def search():
     q = request.args.get("q", "")
     conn = get_db()
     cur = conn.cursor()
-    # INTENTIONAL SQL INJECTION
-    sql = f"SELECT id, title, body FROM posts WHERE title LIKE '%{q}%' OR body LIKE '%{q}%'"
-    rows = cur.execute(sql).fetchall()
-    return render_template("search.html", q=q, rows=rows, sql=sql)
+    # INP-1: параметризований запит, значення q передається окремо від SQL
+    pattern = "%" + q + "%"
+    rows = cur.execute(
+        "SELECT id, title, body FROM posts WHERE title LIKE ? OR body LIKE ?", (pattern, pattern)
+    ).fetchall()
+    return render_template("search.html", q=q, rows=rows)
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+        expected = session.get("csrf_token", "")
+        if not expected or not secrets.compare_digest(request.form.get("csrf_token", ""), expected):
+            audit.warning("csrf_rejected ip=%s", request.remote_addr)
+            return render_template("login.html", error="Invalid form token", csrf_token=csrf_token()), 400
         username = request.form.get("username", "")
         password = request.form.get("password", "")
+        ip = request.remote_addr
+        count, locked_until = FAILED.get(username, (0, 0))
+        if locked_until > time.time():
+            audit.warning("login_locked user=%s ip=%s", username, ip)
+            return render_template("login.html", error="Account temporarily locked", csrf_token=csrf_token()), 429
         conn = get_db()
         cur = conn.cursor()
-        # Passwords stored in plaintext (intentionally bad)
         row = cur.execute("SELECT id, username, password FROM users WHERE username = ?", (username,)).fetchone()
-        if row and row["password"] == password:
+        # STOR-1: порівнюється хеш PBKDF2, а не пароль відкритим текстом
+        if row and check_password_hash(row["password"], password):
+            FAILED.pop(username, None)
+            session.clear()
             session["user_id"] = row["id"]
-            resp = make_response(redirect("/profile"))
-            # Missing security flags intentionally
-            return resp
-        return render_template("login.html", error="Invalid credentials")
-    return render_template("login.html")
+            audit.info("login_success user=%s ip=%s", username, ip)
+            return make_response(redirect("/profile"))
+        count += 1
+        if count >= MAX_FAILED:
+            FAILED[username] = (0, time.time() + LOCK_SECONDS)
+            audit.warning("account_locked user=%s ip=%s seconds=%d", username, ip, LOCK_SECONDS)
+        else:
+            FAILED[username] = (count, 0)
+            audit.warning("login_failed user=%s ip=%s attempt=%d", username, ip, count)
+        return render_template("login.html", error="Invalid credentials", csrf_token=csrf_token())
+    return render_template("login.html", csrf_token=csrf_token())
 
 @app.route("/profile")
 def profile():
@@ -60,4 +120,5 @@ def profile():
     return render_template("profile.html", user=user)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # CONF-1: без режиму debug, лише локальний інтерфейс (у контейнері адресу задає flask run)
+    app.run(host="127.0.0.1", port=5000)
