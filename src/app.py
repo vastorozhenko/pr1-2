@@ -1,12 +1,24 @@
 
 from flask import Flask, request, render_template, redirect, make_response, session
+from werkzeug.security import check_password_hash
+import logging
 import os
 import sqlite3
+import time
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "hardcoded-dev-secret")  # intentionally weak
 
 DB_PATH = os.environ.get("DB_PATH", "demo.sqlite3")
+
+# LOG-1: журнал аудиту входів (паролі не записуються)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+audit = logging.getLogger("audit")
+
+# AUTH-2: блокування після MAX_FAILED невдалих спроб поспіль на LOCK_SECONDS
+MAX_FAILED = 5
+LOCK_SECONDS = 300
+FAILED = {}  # username -> (кількість невдалих спроб, заблоковано до)
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -40,15 +52,28 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "")
         password = request.form.get("password", "")
+        ip = request.remote_addr
+        count, locked_until = FAILED.get(username, (0, 0))
+        if locked_until > time.time():
+            audit.warning("login_locked user=%s ip=%s", username, ip)
+            return render_template("login.html", error="Account temporarily locked"), 429
         conn = get_db()
         cur = conn.cursor()
-        # Passwords stored in plaintext (intentionally bad)
         row = cur.execute("SELECT id, username, password FROM users WHERE username = ?", (username,)).fetchone()
-        if row and row["password"] == password:
+        # STOR-1: порівнюється хеш PBKDF2, а не пароль відкритим текстом
+        if row and check_password_hash(row["password"], password):
+            FAILED.pop(username, None)
+            session.clear()
             session["user_id"] = row["id"]
-            resp = make_response(redirect("/profile"))
-            # Missing security flags intentionally
-            return resp
+            audit.info("login_success user=%s ip=%s", username, ip)
+            return make_response(redirect("/profile"))
+        count += 1
+        if count >= MAX_FAILED:
+            FAILED[username] = (0, time.time() + LOCK_SECONDS)
+            audit.warning("account_locked user=%s ip=%s seconds=%d", username, ip, LOCK_SECONDS)
+        else:
+            FAILED[username] = (count, 0)
+            audit.warning("login_failed user=%s ip=%s attempt=%d", username, ip, count)
         return render_template("login.html", error="Invalid credentials")
     return render_template("login.html")
 
