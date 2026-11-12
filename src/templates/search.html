@@ -8,7 +8,6 @@
       <input name="q" value="{{ q }}">
       <button>Find</button>
     </form>
-    <p><b>Executed SQL (для аналізу):</b> <code>{{ sql }}</code></p>
     <ul>
       {% for r in rows %}
         <li><b>{{ r["title"] }}</b>: {{ r["body"] }}</li>

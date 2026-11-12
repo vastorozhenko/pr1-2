@@ -28,10 +28,12 @@ def search():
     q = request.args.get("q", "")
     conn = get_db()
     cur = conn.cursor()
-    # INTENTIONAL SQL INJECTION
-    sql = f"SELECT id, title, body FROM posts WHERE title LIKE '%{q}%' OR body LIKE '%{q}%'"
-    rows = cur.execute(sql).fetchall()
-    return render_template("search.html", q=q, rows=rows, sql=sql)
+    # INP-1: параметризований запит, значення q передається окремо від SQL
+    pattern = "%" + q + "%"
+    rows = cur.execute(
+        "SELECT id, title, body FROM posts WHERE title LIKE ? OR body LIKE ?", (pattern, pattern)
+    ).fetchall()
+    return render_template("search.html", q=q, rows=rows)
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
