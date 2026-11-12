@@ -1,4 +1,3 @@
-
 services:
   app:
     build: .
@@ -8,5 +7,8 @@ services:
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is not set (see .env)}
       - DB_PATH=/data/demo.sqlite3
     volumes:
-      - ./data:/data
+      - appdata:/data   # іменований том: отримує власника appuser з образу
     command: /bin/sh -c "python src/db.py && flask run --host=0.0.0.0 --port=5000"
+
+volumes:
+  appdata:
