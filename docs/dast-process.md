@@ -37,3 +37,24 @@ ZAP 2.17.0, ціль http://127.0.0.1:5000, 6 URL, 12.11.2026. Підсумок:
 **Перевірка залежностей (pip-audit):** знайдено вразливість PYSEC-2026-2151 (CVE-2026-27205, CVSS 4.3 Medium) у Flask 3.0.3: за деяких способів звернення до сесії Flask не додає заголовок `Vary: Cookie`, тому кеш-проксі може зберегти відповідь з даними користувача. Виправлено у Flask 3.1.3. Створено задачу #7.
 
 ## 3. Результати після виправлень
+
+Повторне сканування після злиття виправлень (ZAP 2.17.0, 7 URL, 12.11.2026): **FAIL-NEW 0, WARN-NEW 5, PASS 63**. Medium 0, Low 1, Informational 4.
+
+| Показник | До | Після |
+|---|---|---|
+| WARN-NEW | 12 | 5 |
+| PASS | 56 | 63 |
+| Medium | 4 | 0 |
+| Low | 6 | 1 |
+
+Залишилися:
+
+| Алерт | Ризик | Оцінка |
+|---|---|---|
+| Server Leaks Version Information [10036] | Low | прийнятий залишковий ризик: заголовок додає сервер розробки Werkzeug; у промисловому середовищі застосунок працює за nginx |
+| User Controllable HTML Element Attribute [10031] | Info | хибне спрацювання: значення екрануються Jinja2, `<script>` у `/echo` перевірено вручну |
+| Storable and Cacheable Content [10049] | Info | інформаційне |
+| Authentication Request Identified [10111] | Info | інформаційне: ZAP розпізнав форму входу |
+| Session Management Response Identified [10112] | Info | інформаційне: з'явився сесійний cookie з CSRF-токеном (тепер з прапорцями HttpOnly і SameSite=Lax) |
+
+Усі Medium-алерти (CSRF, CSP, clickjacking, розкриття SQL) і всі Low-алерти щодо заголовків закрито.
