@@ -7,7 +7,14 @@ import sqlite3
 import time
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "hardcoded-dev-secret")  # intentionally weak
+# CONF-1: секретний ключ лише з ENV/секретів, без запасного значення в коді
+app.secret_key = os.environ["SECRET_KEY"]
+# SESS-1: прапорці сесійного cookie (Secure вмикається при роботі через HTTPS)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "0") == "1",
+)
 
 DB_PATH = os.environ.get("DB_PATH", "demo.sqlite3")
 
@@ -87,4 +94,5 @@ def profile():
     return render_template("profile.html", user=user)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # CONF-1: без режиму debug, лише локальний інтерфейс (у контейнері адресу задає flask run)
+    app.run(host="127.0.0.1", port=5000)

@@ -5,7 +5,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - SECRET_KEY=compose-secret
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is not set (see .env)}
       - DB_PATH=/data/demo.sqlite3
     volumes:
       - ./data:/data
