@@ -1,4 +1,3 @@
-
 FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.txt .
@@ -7,4 +6,4 @@ COPY src ./src
 ENV FLASK_APP=src/app.py
 ENV SECRET_KEY=dev-docker-secret
 EXPOSE 5000
-CMD ["python", "src/db.py"] && ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+CMD ["/bin/sh", "-c", "python src/db.py && flask run --host=0.0.0.0 --port=5000"]
