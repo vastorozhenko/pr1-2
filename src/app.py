@@ -19,9 +19,9 @@ def index():
 
 @app.route("/echo")
 def echo():
-    # Vulnerable to reflected XSS (intentionally)
+    # OUT-1: вивід через шаблон Jinja2 з автоматичним екрануванням
     msg = request.args.get("msg", "")
-    return f"<h1>Echo</h1><p>{msg}</p>"
+    return render_template("echo.html", msg=msg)
 
 @app.route("/search")
 def search():
