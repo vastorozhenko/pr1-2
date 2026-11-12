@@ -1,0 +1,5 @@
+Risk ID,Threat,Likelihood,Impact,Severity,Owner,Status,Notes
+R1,SQLi,High,High,Critical,Team,Open,
+R2,XSS,Med,Med,High,Team,Open,
+R3,Weak auth,High,High,Critical,Team,Open,
+R4,Deps vulns,Med,Med,High,Team,Open,

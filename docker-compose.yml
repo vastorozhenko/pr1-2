@@ -1,0 +1,12 @@
+
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - SECRET_KEY=compose-secret
+      - DB_PATH=/data/demo.sqlite3
+    volumes:
+      - ./data:/data
+    command: /bin/sh -c "python src/db.py && flask run --host=0.0.0.0 --port=5000"

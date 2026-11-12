@@ -1,0 +1,18 @@
+
+<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Search</title></head>
+  <body>
+    <h1>Search</h1>
+    <form method="get" action="/search">
+      <input name="q" value="{{ q }}">
+      <button>Find</button>
+    </form>
+    <p><b>Executed SQL (для аналізу):</b> <code>{{ sql }}</code></p>
+    <ul>
+      {% for r in rows %}
+        <li><b>{{ r["title"] }}</b>: {{ r["body"] }}</li>
+      {% endfor %}
+    </ul>
+  </body>
+</html>

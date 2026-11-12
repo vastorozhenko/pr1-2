@@ -1,0 +1,30 @@
+
+name: DAST (ZAP Baseline)
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  zap-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run app
+        run: |
+          python src/db.py
+          nohup python -m flask --app src/app.py run --host=0.0.0.0 --port=5000 &
+          sleep 5
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.13.0
+        with:
+          target: 'http://127.0.0.1:5000'
+          format: 'html'
+          cmd_options: '-a'
+      - name: Save ZAP report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: report_html.html
