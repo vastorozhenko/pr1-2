@@ -1,5 +1,6 @@
 Risk ID,Threat,Likelihood,Impact,Severity,Owner,Status,Notes
-R1,SQLi,High,High,Critical,Team,Open,
-R2,XSS,Med,Med,High,Team,Open,
-R3,Weak auth,High,High,Critical,Team,Open,
-R4,Deps vulns,Med,Med,High,Team,Open,
+R1,SQL Injection in /search (param q in f-string),High,High,Critical,Dev,Open,INP-1; read/modify any DB data incl. passwords
+R2,Reflected XSS in /echo (param msg unescaped),High,Med,High,Dev,Open,OUT-1 HDR-1; session theft via crafted link
+R3,Weak auth: plaintext passwords and no login rate limit,High,High,Critical,Dev,Open,STOR-1 AUTH-2 LOG-1; brute force; with R1 all passwords leak
+R4,Vulnerable dependencies,Med,Med,High,DevOps,Open,NFR-3; checked by pip-audit in CI
+R5,Insecure config: SECRET_KEY fallback and debug=True and SQL shown on page,Med,High,High,DevOps,Open,CONF-1; session forgery and RCE via Werkzeug debugger
