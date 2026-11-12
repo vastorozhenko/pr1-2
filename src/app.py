@@ -40,6 +40,20 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+@app.after_request
+def security_headers(resp):
+    """HDR-1: заголовки безпеки для всіх відповідей (за результатами ZAP baseline)."""
+    resp.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; form-action 'self'"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    resp.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    resp.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    return resp
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
